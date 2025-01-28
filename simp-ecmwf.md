@@ -1,0 +1,125 @@
+# AI 氣象預報網頁開發 Portfolio
+
+## 情境 (Situation)
+
+父親需要查看AI氣象預報模型，他知道AI可以看氣象圖,但是他不知道要去哪裡看,而在我找到要去哪裡看的網站之後,他還是不知道要怎麼操作那個網站所以我想要設計一個簡單的網頁讓他可以查看.
+
+## 任務 (Task)
+
+建立一個簡單的網頁，顯示AI氣象預報圖片，並允許使用者透過按鈕切換時間，查看不同時間點的預報。
+
+## 行動 (Action)
+
+### 初始行動
+
+首先嘗試使用API獲取數據，但發現API難以使用。因此，改用Selenium模擬使用者點擊網頁，動態抓取JavaScript生成的圖片。成功建立網頁，包含AI氣象預報圖片和時間切換按鈕。
+
+### 迭代 1: 解決 Chrome WebDriver 問題
+
+**遇到的問題**
+
+在運行自動化測試時遇到以下問題：
+- 開發環境和部署環境（虛擬機）的差異導致測試失敗
+- 部署環境中沒有完整的 Chrome 瀏覽器界面
+- 在沙盒（sandbox）模式下可能出現權限問題
+
+**修改內容**
+
+添加以下配置：
+
+```python
+driver = webdriver.Chrome()
+options = webdriver.ChromeOptions()
+options.add_argument('--no-sandbox')  # 禁用沙盒模式以解決虛擬機環境的權限問題
+driver = webdriver.Chrome(options=options)
+```
+
+**結果**
+
+- 解決了部署環境中的權限問題
+- 測試可以在虛擬機環境中穩定運行
+- 提高了測試在不同環境下的一致性
+- 避免了沙盒模式帶來的限制
+
+### 迭代 2: 爬蟲程序的狀態管理與導航優化
+
+**遇到的問題**
+
+- 在查看天氣圖表時，用戶需要方便地返回到第一頁
+- 缺乏爬蟲進度的可視化顯示
+- 需要更好的用戶交互體驗
+
+**修改內容**
+
+添加了進度顯示和返回首頁功能：
+
+```python
+if st.session_state.scraper_running and len(self.image_files) < 61:
+    progress = len(self.image_files) / 61
+    st.progress(progress)
+    st.info("正在爬取氣象圖...")
+
+# Add reset button
+if st.button("回到第一張"):
+    st.session_state.current_index = 0
+```
+
+**結果**
+
+- 新增了進度條顯示爬取進度
+- 添加了"回到第一張"按鈕，方便用戶快速返回到第一頁
+- 改善了用戶體驗，使導航更直觀
+- 通過 session_state 實現了狀態的持久化管理
+
+### 迭代 3: 動態 CSS 選擇器適應問題
+
+**遇到的問題**
+
+- 最初使用固定的 CSS ID 選擇器（'img.jss193.jss65.jss197.jss68'）來定位圖片元素
+- 發現 CSS ID 每天都會改變，導致爬蟲程序在第二天就失效
+- 需要找到一個更穩定的方式來定位目標圖片元素
+
+**修改內容**
+
+改進了圖片定位策略，使用基於規律的 ALT 屬性選擇器：
+
+```python
+def save_image(self, current_img_index):
+    # Wait for image with specific alt text based on index
+    expected_alt = f"T+{current_img_index * 6}"
+    image = WebDriverWait(self.driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, f'img[alt="{expected_alt}"]'))
+    )
+```
+
+**結果**
+
+- 解決了 CSS 選擇器每日變化的問題
+- 程序變得更加穩定和可靠
+- 不再需要每天更新選擇器
+- 通過圖片的 alt 屬性模式（T+X 小時）實現了可預測的定位
+- 改進了程序的維護性和持久性
+
+### 迭代 4: 爬蟲邏輯異步化與快取優化
+
+**遇到的問題**
+
+- 原始設計中，爬蟲邏輯與前端頁面耦合
+- 爬蟲程序需要約 1.5 分鐘才能完成數據獲取
+- 爬蟲邏輯只在使用者訪問頁面時觸發，而不是按預定時間間隔執行
+- 無法實現預期的每 6 小時自動更新一次數據的功能
+
+**修改內容**
+
+實現了爬蟲邏輯的異步處理和數據快取
+
+**結果**
+
+- 爬蟲邏輯與前端展示解耦
+- 實現了數據快取機制，有效期為 6 小時
+- 使用者可以立即看到上次快取的氣象圖
+- 爬蟲在背景異步執行，不影響用戶體驗
+
+## 結果 (Result)
+
+成功建置一個網頁，可以顯示AI氣象預報圖片，並透過按鈕切換時間查看不同時間點的預報。克服了API難以使用的挑戰，成功利用Selenium抓取圖片。未來可以優化網頁介面並加入更多功能。
